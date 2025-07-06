@@ -224,47 +224,80 @@
   }
 
   /**
-    * --- UPDATED ---
-    * Calculates and displays statistics for events within the current view's date range.
+    * --- FINAL CORRECTED LOGIC ---
+    * Calculates statistics by counting each day an event is active within the visible range.
+    * This provides a count that matches the visual representation on the calendar.
     */
   function updateStats() {
     const statsContainer = document.getElementById('stats-container');
     if (!calendar || !statsContainer) return;
 
     const view = calendar.view;
-    const viewStart = view.activeStart;
-    const viewEnd = view.activeEnd;
     const displayedEvents = calendar.getEvents();
+    let filterStart, filterEnd;
 
-    const eventsInView = displayedEvents.filter(event => {
-      return event.start >= viewStart && event.start < viewEnd;
-    });
+    // Define the date range for filtering based on the current view
+    if (view.type === 'dayGridMonth') {
+        const currentDate = calendar.getDate();
+        filterStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        filterEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    } else {
+        filterStart = view.activeStart;
+        filterEnd = view.activeEnd;
+    }
 
-    // More robust counting logic
     const counts = {
       hakama: 0,
       peruk: 0,
       irua: 0
     };
 
-    eventsInView.forEach(event => {
+    // Iterate over each event currently displayed on the calendar
+    displayedEvents.forEach(event => {
       const typeName = event.extendedProps.taskTypeName;
-      if (typeName === 'הקמה') {
-        counts.hakama++;
-      } else if (typeName === 'פירוק') {
-        counts.peruk++;
-      } else if (typeName === 'אירוע' || typeName === 'ארוע לוח שנה') {
-        counts.irua++;
+      if (!typeName) return; // Skip if event has no type
+
+      const eventStart = new Date(event.start);
+      let eventEnd = event.end ? new Date(event.end) : null;
+
+      // FIX: For single-day events, event.end might be null or same as start.
+      // To ensure the loop runs, we set the end to the next day.
+      if (!eventEnd || eventEnd <= eventStart) {
+        eventEnd = new Date(eventStart.getTime() + 86400000); // Add 1 day
+      }
+
+      // Clone the start date to create our iterator, and normalize to the start of the day
+      let loop = new Date(eventStart);
+      loop.setHours(0, 0, 0, 0);
+
+      // Loop through each day the event spans
+      while (loop < eventEnd) {
+        // Check if the current day of the event is within the visible date range
+        if (loop >= filterStart && loop < filterEnd) {
+          // Using strict equality for precision
+          if (typeName === 'הקמה') {
+            counts.hakama++;
+          } else if (typeName === 'פירוק') {
+            counts.peruk++;
+          // FIX: Using strict equality to count ONLY "ארוע" and not "ארוע לוח שנה"
+          } else if (typeName === 'אירוע' || typeName === 'ארוע') {
+            counts.irua++;
+          }
+        }
+        // Move to the next day
+        loop.setDate(loop.getDate() + 1);
       }
     });
 
+    // Update the HTML with the new, intuitive counts
     let statsHTML = '';
-    if (counts.hakama > 0) statsHTML += `<span class="stat-item">${counts.hakama} הקמות</span>`;
-    if (counts.peruk > 0) statsHTML += `<span class="stat-item">${counts.peruk} פירוקים</span>`;
+    if (counts.hakama > 0) statsHTML += `<span class="stat-item">${counts.hakama} ימי הקמה</span>`;
+    if (counts.peruk > 0) statsHTML += `<span class="stat-item">${counts.peruk} ימי פירוק</span>`;
     if (counts.irua > 0) statsHTML += `<span class="stat-item">${counts.irua} ימי אירוע</span>`;
     
     statsContainer.innerHTML = statsHTML;
   }
+
 
   /**
     * Sets up the mouse wheel navigation on the calendar.

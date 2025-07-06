@@ -72,8 +72,8 @@
   /* --- UPDATED: Custom Toolbar Styles with 5-Zone Grid --- */
   #custom-toolbar {
     display: grid;
-    /* 5 columns: Search | App Title | Date (flexible) | Stats | Controls */
-    grid-template-columns: auto auto 1fr auto auto;
+    /* CORRECTED: Search | Title (flex) | Date | Stats (flex) | Controls */
+    grid-template-columns: auto 1fr auto 1fr auto;
     align-items: center;
     padding: 10px 15px;
     background-color: #ffffff;
@@ -86,16 +86,27 @@
     gap: 10px;
   }
   #toolbar-search { justify-content: flex-start; }
+  #toolbar-date { justify-content: center; }
+  #toolbar-controls { justify-content: flex-end; }
+  
+  /* --- NEW STYLES for Title and Stats --- */
+  #toolbar-app-title, #toolbar-stats {
+    justify-content: center; /* Center the content (text/stats) inside */
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 5px 15px;
+    min-height: 40px; /* Ensure consistent height */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  }
+
   #toolbar-app-title h3 {
     margin: 0;
     font-size: 1.1em;
     font-weight: 500;
-    color: #6c757d;
+    color: #495057; /* Slightly darker for better contrast */
     white-space: nowrap;
   }
-  #toolbar-date { justify-content: center; }
-  #toolbar-stats { justify-content: flex-start; }
-  #toolbar-controls { justify-content: flex-end; }
   
   #custom-title {
     font-size: 1.75em;
@@ -228,6 +239,12 @@
   .fc-event-title {
     white-space: normal !important;
   }
+  
+  /* --- NEW --- Fix for List View Text Color */
+  .fc-list-event-title a {
+    color: inherit !important; /* Force link to inherit color from parent */
+  }
+  
   .fc-daygrid-event-dot {
     display: none;
   }
