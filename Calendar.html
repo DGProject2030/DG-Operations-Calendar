@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <!-- Meta tags for mobile responsiveness -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- FullCalendar library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    
+    <!-- Include CSS styles -->
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <!-- Loading Spinner -->
+    <div id="loader-wrapper">
+      <div class="loader"></div>
+      <p>טוען את לוח התפעול החדש של עיצוב במה</p>
+    </div>
+
+    <!-- Main Calendar Container -->
+    <div id="calendar-container">
+      
+      <!-- UPDATED: Toolbar with 5 distinct zones -->
+      <div id="custom-toolbar">
+        <!-- Zone 1: Search (Far Right) -->
+        <div class="toolbar-section" id="toolbar-search">
+          <div id="search-container">
+            <input type="text" id="search-input" placeholder="חיפוש...">
+            <button id="clear-search-btn" title="נקה חיפוש">&times;</button>
+          </div>
+        </div>
+
+        <!-- Zone 2: App Title -->
+        <div class="toolbar-section" id="toolbar-app-title">
+          <h3>לוח התפעול החדש של עיצוב במה</h3>
+        </div>
+
+        <!-- Zone 3: Date (Center) -->
+        <div class="toolbar-section" id="toolbar-date">
+          <h2 id="custom-title"></h2>
+        </div>
+
+        <!-- Zone 4: Stats -->
+        <div class="toolbar-section" id="toolbar-stats">
+          <div id="stats-container"></div>
+        </div>
+
+        <!-- Zone 5: Controls (Far Left) -->
+        <div class="toolbar-section" id="toolbar-controls">
+          <div class="fc-button-group">
+            <button id="custom-prev-button" class="fc-button fc-button-primary" title="הקודם">‹</button>
+            <button id="custom-next-button" class="fc-button fc-button-primary" title="הבא">›</button>
+          </div>
+          <button id="custom-today-button" class="fc-button fc-button-primary">היום</button>
+          <div class="fc-button-group">
+            <button id="custom-month-view" class="fc-button fc-button-primary">חודש</button>
+            <button id="custom-week-view" class="fc-button fc-button-primary">שבוע</button>
+            <button id="custom-day-view" class="fc-button fc-button-primary">יום</button>
+            <button id="custom-list-view" class="fc-button fc-button-primary">רשימה</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Watermark -->
+      <div id="watermark">PREVIEW</div>
+      <div id="calendar"></div>
+    </div>
+
+    <!-- Tooltip for Hover -->
+    <div id="event-tooltip" class="tooltip">
+        <h2 id="tooltip-title"></h2>
+        <p id="tooltip-hour-row"><strong>שעה:</strong> <span id="tooltip-hour"></span></p>
+    </div>
+
+    <!-- Modal for Click -->
+    <div id="event-click-modal" class="modal">
+      <div class="modal-content">
+        <span id="modal-close-button" class="close-button">&times;</span>
+        <h2 id="modal-title"></h2>
+        <div class="modal-content-inner">
+          <hr>
+          <p id="modal-status-row"><strong>סטטוס משימה:</strong> <span id="modal-status"></span></p>
+          <p id="modal-project-row"><strong>פרויקט:</strong> <span id="modal-project"></span></p>
+          <p id="modal-user-row"><strong>מנהל פרויקט:</strong> <span id="modal-user"></span></p>
+          <p id="modal-description-row"><strong>תיאור:</strong></p>
+          <p id="modal-description"></p>
+          
+          <p id="modal-folder-container" style="display: none;">
+            <a id="modal-folder-link" href="#" target="_blank" rel="noopener noreferrer">קישור לתיק אירוע</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Include Client-side JavaScript -->
+    <?!= include('Scripts'); ?>
+  </body>
+</html>

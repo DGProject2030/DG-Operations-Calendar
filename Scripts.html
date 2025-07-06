@@ -1,0 +1,322 @@
+<script>
+  /**
+    * Runs when the DOM is fully loaded.
+    * Initiates the process of fetching calendar data from the server-side script.
+    */
+  document.addEventListener('DOMContentLoaded', function() {
+    google.script.run
+      .withSuccessHandler(initializeCalendar)
+      .withFailureHandler(handleError)
+      .getCalendarEvents();
+  });
+
+  let calendar;
+  let allEvents = [];
+
+  /**
+    * A helper function to limit the rate at which a function can be called.
+    * @param {Function} func The function to throttle.
+    * @param {number} limit The minimum time interval (in milliseconds) between calls.
+    * @returns {Function} The throttled function.
+    */
+  function throttle(func, limit) {
+    let inThrottle;
+    return function() {
+      const args = arguments;
+      const context = this;
+      if (!inThrottle) {
+        func.apply(context, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    }
+  }
+
+  /**
+    * Initializes the FullCalendar instance.
+    */
+  function initializeCalendar(events) {
+    try {
+      allEvents = JSON.parse(JSON.stringify(events));
+      const calendarEl = document.getElementById('calendar');
+      
+      const isMobile = window.innerWidth <= 768;
+      const initialView = isMobile ? 'listWeek' : 'dayGridMonth';
+
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'he',
+        direction: 'rtl',
+        height: 'auto',
+        headerToolbar: false, 
+        initialView: initialView,
+        navLinks: true,
+        editable: false,
+        dayMaxEvents: false,
+        events: allEvents,
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        },
+
+        eventDidMount: function(info) {
+          if (info.event.backgroundColor) {
+              info.el.style.backgroundColor = info.event.backgroundColor;
+              info.el.style.borderColor = info.event.backgroundColor;
+          }
+          if (info.event.textColor) {
+              const eventMain = info.el.querySelector('.fc-event-main');
+              if (eventMain) { 
+                  eventMain.style.color = info.event.textColor;
+              }
+              const eventTitle = info.el.querySelector('.fc-event-title');
+              if (eventTitle) {
+                  eventTitle.style.color = info.event.textColor;
+              }
+          } 
+        },
+
+        eventMouseEnter: function(info) {
+          const tooltip = document.getElementById('event-tooltip');
+          tooltip.style.backgroundColor = info.event.textColor || '#333'; 
+          tooltip.style.color = 'white';
+          document.getElementById('tooltip-title').textContent = info.event.title;
+          const hourRow = document.getElementById('tooltip-hour-row');
+          if (!info.event.allDay && info.event.start) {
+            const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+            const timeString = info.event.start.toLocaleTimeString('he-IL', timeOptions);
+            document.getElementById('tooltip-hour').textContent = timeString;
+            hourRow.style.display = 'block';
+          } else {
+            hourRow.style.display = 'none';
+          }
+          const xOffset = 10;
+          const yOffset = 10;
+          tooltip.style.left = (info.jsEvent.pageX + xOffset) + 'px';
+          tooltip.style.top = (info.jsEvent.pageY + yOffset) + 'px';
+          tooltip.style.display = 'block';
+        },
+
+        eventMouseLeave: function(info) {
+          document.getElementById('event-tooltip').style.display = 'none';
+        },
+
+        eventClick: function(info) {
+          info.jsEvent.preventDefault();
+          const modal = document.getElementById('event-click-modal');
+          const modalTitle = document.getElementById('modal-title');
+          const props = info.event.extendedProps;
+          modalTitle.style.backgroundColor = info.event.backgroundColor || '#3498db';
+          modalTitle.style.color = info.event.textColor || 'white';
+          const eventDate = info.event.start;
+          const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
+          const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+          let formattedDateTime = eventDate.toLocaleDateString('he-IL', dateOptions);
+          if (!info.event.allDay) {
+            formattedDateTime += ' ' + eventDate.toLocaleTimeString('he-IL', timeOptions);
+          }
+          modalTitle.textContent = `${info.event.title} - ${formattedDateTime}`;
+          function updateAndShowRow(rowId, contentId, content) {
+            const row = document.getElementById(rowId);
+            if (content && content.trim() !== '') {
+              document.getElementById(contentId).textContent = content;
+              row.style.display = 'block';
+            } else {
+              row.style.display = 'none';
+            }
+          }
+          updateAndShowRow('modal-status-row', 'modal-status', props.status);
+          updateAndShowRow('modal-project-row', 'modal-project', props.project);
+          updateAndShowRow('modal-user-row', 'modal-user', props.user);
+          const descriptionRow = document.getElementById('modal-description-row');
+          const descriptionContent = document.getElementById('modal-description');
+          if (props.description && props.description.trim() !== '') {
+              descriptionContent.textContent = props.description;
+              descriptionRow.style.display = 'block';
+              descriptionContent.style.display = 'block';
+          } else {
+              descriptionRow.style.display = 'none';
+              descriptionContent.style.display = 'none';
+          }
+          const folderContainer = document.getElementById('modal-folder-container');
+          const folderLinkElement = document.getElementById('modal-folder-link');
+          if (props.folderLink) {
+            folderLinkElement.href = props.folderLink;
+            folderContainer.style.display = 'block';
+          } else {
+            folderContainer.style.display = 'none';
+          }
+          modal.style.display = 'block';
+        },
+
+        datesSet: function(dateInfo) {
+          document.getElementById('custom-title').textContent = dateInfo.view.title;
+          updateStats(); 
+        }
+      });
+
+      calendar.render();
+      setupCustomToolbar(); 
+      setupScrollNavigation();
+      hideLoader();
+    } catch (error) {
+      handleError(error);
+    }
+  }
+
+  /**
+    * Sets up the custom toolbar buttons and search functionality.
+    */
+  function setupCustomToolbar() {
+    // Navigation buttons
+    document.getElementById('custom-prev-button').addEventListener('click', () => calendar.prev());
+    document.getElementById('custom-next-button').addEventListener('click', () => calendar.next());
+    document.getElementById('custom-today-button').addEventListener('click', () => calendar.today());
+    
+    // View buttons
+    const viewButtons = {
+      month: document.getElementById('custom-month-view'),
+      week: document.getElementById('custom-week-view'),
+      day: document.getElementById('custom-day-view'),
+      list: document.getElementById('custom-list-view')
+    };
+
+    Object.values(viewButtons).forEach(btn => btn.classList.remove('fc-button-active'));
+    const currentView = calendar.view.type;
+    if (currentView === 'dayGridMonth') viewButtons.month.classList.add('fc-button-active');
+    else if (currentView === 'listWeek') viewButtons.list.classList.add('fc-button-active');
+    else if (currentView === 'timeGridWeek') viewButtons.week.classList.add('fc-button-active');
+    else if (currentView === 'timeGridDay') viewButtons.day.classList.add('fc-button-active');
+    
+    const handleViewChange = (view) => {
+      calendar.changeView(view);
+      Object.values(viewButtons).forEach(btn => btn.classList.remove('fc-button-active'));
+      if (view === 'dayGridMonth') viewButtons.month.classList.add('fc-button-active');
+      if (view === 'timeGridWeek') viewButtons.week.classList.add('fc-button-active');
+      if (view === 'timeGridDay') viewButtons.day.classList.add('fc-button-active');
+      if (view === 'listWeek') viewButtons.list.classList.add('fc-button-active');
+    };
+    
+    viewButtons.month.addEventListener('click', () => handleViewChange('dayGridMonth'));
+    viewButtons.week.addEventListener('click', () => handleViewChange('timeGridWeek'));
+    viewButtons.day.addEventListener('click', () => handleViewChange('timeGridDay'));
+    viewButtons.list.addEventListener('click', () => handleViewChange('listWeek'));
+    
+    // Search functionality with clear button
+    const searchInput = document.getElementById('search-input');
+    const clearSearchBtn = document.getElementById('clear-search-btn');
+
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      clearSearchBtn.style.display = searchTerm ? 'block' : 'none';
+      const filteredEvents = allEvents.filter(event => 
+        event.title.toLowerCase().includes(searchTerm)
+      );
+      calendar.removeAllEvents();
+      calendar.addEventSource(filteredEvents);
+      updateStats();
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      searchInput.dispatchEvent(new Event('input'));
+    });
+  }
+
+  /**
+    * --- UPDATED ---
+    * Calculates and displays statistics for events within the current view's date range.
+    */
+  function updateStats() {
+    const statsContainer = document.getElementById('stats-container');
+    if (!calendar || !statsContainer) return;
+
+    const view = calendar.view;
+    const viewStart = view.activeStart;
+    const viewEnd = view.activeEnd;
+    const displayedEvents = calendar.getEvents();
+
+    const eventsInView = displayedEvents.filter(event => {
+      return event.start >= viewStart && event.start < viewEnd;
+    });
+
+    // More robust counting logic
+    const counts = {
+      hakama: 0,
+      peruk: 0,
+      irua: 0
+    };
+
+    eventsInView.forEach(event => {
+      const typeName = event.extendedProps.taskTypeName;
+      if (typeName === 'הקמה') {
+        counts.hakama++;
+      } else if (typeName === 'פירוק') {
+        counts.peruk++;
+      } else if (typeName === 'אירוע' || typeName === 'ארוע לוח שנה') {
+        counts.irua++;
+      }
+    });
+
+    let statsHTML = '';
+    if (counts.hakama > 0) statsHTML += `<span class="stat-item">${counts.hakama} הקמות</span>`;
+    if (counts.peruk > 0) statsHTML += `<span class="stat-item">${counts.peruk} פירוקים</span>`;
+    if (counts.irua > 0) statsHTML += `<span class="stat-item">${counts.irua} ימי אירוע</span>`;
+    
+    statsContainer.innerHTML = statsHTML;
+  }
+
+  /**
+    * Sets up the mouse wheel navigation on the calendar.
+    */
+  function setupScrollNavigation() {
+    const calendarEl = document.getElementById('calendar');
+    
+    const handleWheelNavigation = (event) => {
+      event.preventDefault();
+      if (event.deltaY < 0) {
+        calendar.prev();
+      } else {
+        calendar.next();
+      }
+    };
+    
+    const throttledNavigation = throttle(handleWheelNavigation, 300);
+    
+    calendarEl.addEventListener('wheel', throttledNavigation, { passive: false });
+  }
+
+  /**
+    * Handles errors during the server call or client-side initialization.
+    */
+  function handleError(error) {
+    console.error('Error:', error);
+    const loader = document.getElementById('loader-wrapper');
+    loader.style.opacity = '1';
+    loader.innerHTML = '<p>אירעה שגיאה בטעינת הנתונים. אנא נסה לרענן את הדף.</p>';
+  }
+
+  /**
+    * Hides the loading spinner and shows the calendar.
+    */
+  function hideLoader() {
+    const loader = document.getElementById('loader-wrapper');
+    loader.style.opacity = '0';
+    setTimeout(() => {
+      loader.style.display = 'none';
+    }, 300);
+    document.getElementById('calendar-container').style.opacity = '1';
+  }
+
+  // --- Modal Close Logic ---
+  const modal = document.getElementById('event-click-modal');
+  const closeButton = document.getElementById('modal-close-button');
+  closeButton.onclick = function() {
+    modal.style.display = 'none';
+  }
+  window.onclick = function(event) {
+    if (event.target == modal) {
+      modal.style.display = 'none';
+    }
+  }
+</script>
