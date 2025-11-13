@@ -19,7 +19,8 @@ function isCurrentUserAuthorized() {
     return false;
   } catch (e) {
     // If user is not logged in or there's an error, they are not authorized.
-    console.error("Authorization check failed: " + e.toString());
+    // Log error server-side only - don't expose authentication details
+    console.error("Authorization check failed");
     return false;
   }
 }
@@ -42,7 +43,7 @@ function doGet(e) {
     .setTitle('לוח התפעול החדש')
     .setFaviconUrl('https://ssl.gstatic.com/docs/spreadsheets/forms/favicon_qp2.png')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DENY);
 }
 
 /**
@@ -67,7 +68,7 @@ function getCalendarEvents() {
 
   try {
     // Step 1: Fetch the raw task data from the 'Task' sheet.
-    const taskData = sheetToObjects('Task', SPREADSHEET_ID);
+    const taskData = sheetToObjects('Task', getSpreadsheetId());
 
     // Step 2: Fetch all supporting data tables.
     const projectsMap = getSheetAsMapWithCache('Project', 'ID', false);
@@ -94,8 +95,12 @@ function getCalendarEvents() {
     
     return calendarEvents;
   } catch (e) {
+    // Log detailed error server-side for debugging
     console.error('Error in getCalendarEvents: ' + e.toString());
     console.error('Stack: ' + e.stack);
-    return []; // Return an empty array to prevent the app from crashing.
+
+    // Return a safe, generic error message to the client
+    // Never expose internal error details, stack traces, or file paths
+    throw new Error('Unable to load calendar data. Please try again later or contact support if the issue persists.');
   }
 }
