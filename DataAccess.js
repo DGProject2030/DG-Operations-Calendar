@@ -3,8 +3,83 @@
  * @description Handles all direct data access from Google Sheets and caching logic.
  */
 
-// A single constant for the spreadsheet ID, since all sheets are in the same file.
-const SPREADSHEET_ID = '1GlL6Mot0Z8tcb4MYJQW1nnsgzBKuKOgBiYMsnwMbKMg';
+/**
+ * Gets the spreadsheet ID from Script Properties.
+ * To set this value, run: PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', 'your-spreadsheet-id')
+ * @returns {string} The spreadsheet ID
+ * @throws {Error} If SPREADSHEET_ID is not configured in Script Properties
+ */
+function getSpreadsheetId() {
+  const spreadsheetId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!spreadsheetId) {
+    throw new Error('SPREADSHEET_ID not configured in Script Properties. Please set it using PropertiesService.getScriptProperties().setProperty("SPREADSHEET_ID", "your-spreadsheet-id")');
+  }
+  return spreadsheetId;
+}
+
+/**
+ * Validates that a sheet name is safe and in the allowed list.
+ * This prevents potential security issues from accessing unintended sheets.
+ * @param {string} sheetName - The name of the sheet to validate
+ * @returns {boolean} True if the sheet name is valid
+ * @throws {Error} If the sheet name is invalid or not in the allowed list
+ */
+function validateSheetName(sheetName) {
+  const ALLOWED_SHEETS = [
+    'Task',
+    'Project',
+    'Employee',
+    'TaskStatus',
+    'TaskType',
+    'Location',
+    'ProjectStatus'
+  ];
+
+  if (!sheetName || typeof sheetName !== 'string') {
+    throw new Error('Invalid sheet name: must be a non-empty string');
+  }
+
+  const trimmedName = sheetName.trim();
+
+  if (trimmedName.length === 0 || trimmedName.length > 100) {
+    throw new Error('Invalid sheet name: length must be between 1 and 100 characters');
+  }
+
+  // Check if sheet name contains only alphanumeric characters, spaces, underscores, and hyphens
+  if (!/^[a-zA-Z0-9\s_-]+$/.test(trimmedName)) {
+    throw new Error('Invalid sheet name: contains illegal characters');
+  }
+
+  if (!ALLOWED_SHEETS.includes(trimmedName)) {
+    throw new Error(`Sheet "${trimmedName}" is not in the allowed sheets list`);
+  }
+
+  return true;
+}
+
+/**
+ * Validates and sanitizes a value to ensure it's safe for use.
+ * @param {*} value - The value to validate
+ * @param {string} fieldName - The name of the field being validated
+ * @returns {*} The sanitized value
+ */
+function validateAndSanitizeValue(value, fieldName) {
+  // Handle null, undefined, or empty values
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+
+  // Convert to string for validation
+  const strValue = String(value);
+
+  // Check for excessively long values (potential DoS)
+  if (strValue.length > 10000) {
+    console.warn(`Value for field "${fieldName}" exceeds maximum length, truncating`);
+    return strValue.substring(0, 10000);
+  }
+
+  return value;
+}
 
 // --- Caching Configuration ---
 const CACHE_EXPIRATION_SECONDS = 3600; // Cache data for 1 hour (3600 seconds)
@@ -20,10 +95,13 @@ const CACHE_SERVICE = CacheService.getScriptCache();
  */
 function sheetToObjects(sheetName, spreadsheetId) {
   try {
+    // Validate sheet name before accessing
+    validateSheetName(sheetName);
+
     const ss = SpreadsheetApp.openById(spreadsheetId);
     const sheet = ss.getSheetByName(sheetName);
     if (!sheet) {
-      console.error(`Sheet "${sheetName}" not found in spreadsheet with ID "${spreadsheetId}".`);
+      console.error(`Sheet "${sheetName}" not found in spreadsheet.`);
       return [];
     }
     const dataRange = sheet.getDataRange();
@@ -39,7 +117,7 @@ function sheetToObjects(sheetName, spreadsheetId) {
       const obj = {};
       headers.forEach((header, index) => {
         if (header) { // Only add property if header is not empty
-          obj[header] = row[index];
+          obj[header] = validateAndSanitizeValue(row[index], header);
         }
       });
       return obj;
@@ -47,10 +125,12 @@ function sheetToObjects(sheetName, spreadsheetId) {
 
     // Filter rows based on the 'ID' column to ensure data integrity.
     return data.filter(obj => obj.ID && obj.ID.toString().length > 0);
-    
+
   } catch (e) {
+    // Log detailed error server-side for debugging
     console.error(`Failed to read sheet: ${sheetName}. Error: ${e.toString()}`);
-    return [];
+    // Don't expose sensitive error details - throw a generic error
+    throw new Error('Unable to access data. Please check configuration and try again.');
   }
 }
 
@@ -92,7 +172,7 @@ function getSheetAsMapWithCache(sheetName, keyField, useCache = true) {
   }
 
   // If not using cache, or if item is not in cache, fetch fresh data.
-  const sheetData = sheetToObjects(sheetName, SPREADSHEET_ID);
+  const sheetData = sheetToObjects(sheetName, getSpreadsheetId());
   const dataMap = arrayToMap(sheetData, keyField);
 
   // If caching is enabled, try to store the new data.
@@ -102,7 +182,8 @@ function getSheetAsMapWithCache(sheetName, keyField, useCache = true) {
       CACHE_SERVICE.put(cacheKey, JSON.stringify(dataMap), CACHE_EXPIRATION_SECONDS);
     } catch (e) {
       // If caching fails (e.g., data is too large), log the error but continue.
-      console.error(`Could not cache sheet: ${sheetName}. Data might be too large. Error: ${e.message}`);
+      // This is logged server-side only and doesn't affect the operation
+      console.error(`Could not cache sheet: ${sheetName}. Data might be too large.`);
     }
   }
 
